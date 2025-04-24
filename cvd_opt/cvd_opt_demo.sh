@@ -20,13 +20,13 @@ evalset=(
   breakdance-flare
 )
 
-DATA_PATH=/home/zhengqili/filestore/DAVIS/DAVIS/JPEGImages/480p
+DATA_PATH=/data/rohith/ag/frames/00T1E.mp4/
 
 
 # Run Raft Optical Flows
 for seq in ${evalset[@]}; do
   CUDA_VISIBLE_DEVICES=0 python cvd_opt/preprocess_flow.py \
-  --datapath=$DATA_PATH/$seq \
+  --datapath=$DATA_PATH \
   --model=cvd_opt/raft-things.pth \
   --scene_name $seq --mixed_precision
 done

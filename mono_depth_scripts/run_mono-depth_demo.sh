@@ -26,7 +26,7 @@ DATA_DIR=/home/zhengqili/filestore/DAVIS/DAVIS/JPEGImages/480p
 for seq in ${evalset[@]}; do
   CUDA_VISIBLE_DEVICES=0 python Depth-Anything/run_videos.py --encoder vitl \
   --load-from Depth-Anything/checkpoints/depth_anything_vitl14.pth \
-  --img-path $DATA_DIR/$seq \
+  --img-path /data/rohith/ag/frames/00T1E.mp4/ \
   --outdir Depth-Anything/video_visualization/$seq
 done
 
@@ -36,6 +36,6 @@ export PYTHONPATH="${PYTHONPATH}:$(pwd)/UniDepth"
 for seq in ${evalset[@]}; do
   CUDA_VISIBLE_DEVICES=0 python UniDepth/scripts/demo_mega-sam.py \
   --scene-name $seq \
-  --img-path $DATA_DIR/$seq \
+  --img-path /data/rohith/ag/frames/00T1E.mp4/ \
   --outdir UniDepth/outputs
 done

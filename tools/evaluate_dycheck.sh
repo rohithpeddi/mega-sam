@@ -14,7 +14,7 @@
 # limitations under the License.
 # ==============================================================================
 
-DATA_PATH=/home/zhengqili/dycheck
+DATA_PATH=/data/rohith/ag/frames/00T1E.mp4/
 CKPT_PATH=checkpoints/megasam_final.pth
 
 evalset=(

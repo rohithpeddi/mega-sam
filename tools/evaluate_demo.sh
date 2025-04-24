@@ -14,7 +14,7 @@
 # limitations under the License.
 # ==============================================================================
 
-DATA_PATH=/home/zhengqili/filestore/DAVIS/DAVIS/JPEGImages/480p
+DATA_PATH=/data/rohith/ag/frames/00T1E.mp4/
 CKPT_PATH=checkpoints/megasam_final.pth
 
 evalset=(
@@ -25,7 +25,7 @@ evalset=(
 
 for seq in ${evalset[@]}; do
     CUDA_VISIBLE_DEVICE=0 python camera_tracking_scripts/test_demo.py \
-    --datapath=$DATA_PATH/$seq \
+    --datapath=$DATA_PATH \
     --weights=$CKPT_PATH \
     --scene_name $seq \
     --mono_depth_path $(pwd)/Depth-Anything/video_visualization \
