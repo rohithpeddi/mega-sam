@@ -10,13 +10,13 @@ import torchvision.transforms.functional as TF
 from einops import rearrange
 from huggingface_hub import PyTorchModelHubMixin
 
-from unidepth.models.unidepthv2.decoder import Decoder
-from unidepth.utils.constants import (IMAGENET_DATASET_MEAN,
+from UniDepth.unidepth.models.unidepthv2.decoder import Decoder
+from UniDepth.unidepth.utils.constants import (IMAGENET_DATASET_MEAN,
                                       IMAGENET_DATASET_STD)
-from unidepth.utils.distributed import is_main_process
-from unidepth.utils.geometric import (generate_rays,
+from UniDepth.unidepth.utils.distributed import is_main_process
+from UniDepth.unidepth.utils.geometric import (generate_rays,
                                       spherical_zbuffer_to_euclidean)
-from unidepth.utils.misc import (first_stack, last_stack, max_stack,
+from UniDepth.unidepth.utils.misc import (first_stack, last_stack, max_stack,
                                  mean_stack, softmax_stack)
 
 STACKING_FNS = {
@@ -308,7 +308,7 @@ class UniDepthV2(
         return next(self.parameters()).device
 
     def build(self, config):
-        mod = importlib.import_module("unidepth.models.encoder")
+        mod = importlib.import_module("UniDepth.unidepth.models.encoder")
         pixel_encoder_factory = getattr(mod, config["model"]["pixel_encoder"]["name"])
         pixel_encoder_config = {
             **config["training"],

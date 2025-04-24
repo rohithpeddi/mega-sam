@@ -12,8 +12,8 @@ import huggingface_hub
 import torch.nn.functional as F
 import torch.onnx
 
-from unidepth.models.unidepthv2 import UniDepthV2
-from unidepth.utils.geometric import generate_rays
+from UniDepth.unidepth.models.unidepthv2 import UniDepthV2
+from UniDepth.unidepth.utils.geometric import generate_rays
 
 
 class UniDepthV2ONNX(UniDepthV2):
