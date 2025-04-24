@@ -8,6 +8,7 @@ from Depth_Anything.depth_anything.util.transform import NormalizeImage, Prepare
 import imageio
 import numpy as np
 import torch
+import pickle
 import torch.nn.functional as F
 from torchvision.transforms import Compose
 from tqdm import tqdm
@@ -25,6 +26,14 @@ class AgMegaSam:
         self.video_list = sorted(os.listdir(self.frames_path))
         self.gt_annotations = sorted(os.listdir(self.annotations_path))
         print("Total number of ground truth annotations: ", len(self.gt_annotations))
+
+        video_id_frame_id_list_pkl_file_path = os.path.join(self.datapath, "4d_video_frame_id_list.pkl")
+        if os.path.exists(video_id_frame_id_list_pkl_file_path):
+            with open(video_id_frame_id_list_pkl_file_path, "rb") as f:
+                self.video_id_frame_id_list = pickle.load(f)
+        else:
+            assert False, f"Please generate {video_id_frame_id_list_pkl_file_path} first"
+
 
         # ------ Depth Anything parameters ------
         self.margin_width = 50
@@ -128,8 +137,14 @@ class AgMegaSam:
     def run_ag_depth_anything_estimation(self):
         for video_id in tqdm(self.video_list):
             video_frames_path = os.path.join(self.frames_path, video_id)
-            img_paths = sorted(glob.glob(os.path.join(video_frames_path, '*.png')))
-            img_paths += sorted(glob.glob(os.path.join(video_frames_path, '*.jpg')))
+            img_paths = []
+            frame_id_list = self.video_id_frame_id_list[video_id]
+            for frame_id in frame_id_list:
+                img_path = os.path.join(video_frames_path, f"{frame_id:06d}.png")
+                if os.path.exists(img_path):
+                    img_paths.append(img_path)
+                else:
+                    assert False, f"Image {img_path} does not exist."
 
             self.video_depth_anything_estimation(video_id, img_paths)
 
@@ -198,8 +213,15 @@ class AgMegaSam:
     def run_ag_unidepth_estimation(self):
         for video_id in tqdm(self.video_list):
             video_frames_path = os.path.join(self.frames_path, video_id)
-            img_paths = sorted(glob.glob(os.path.join(video_frames_path, '*.png')))
-            img_paths += sorted(glob.glob(os.path.join(video_frames_path, '*.jpg')))
+            img_paths = []
+            frame_id_list = self.video_id_frame_id_list[video_id]
+            for frame_id in frame_id_list:
+                img_path = os.path.join(video_frames_path, f"{frame_id:06d}.png")
+                if os.path.exists(img_path):
+                    img_paths.append(img_path)
+                else:
+                    assert False, f"Image {img_path} does not exist."
+
 
             self.video_unidepth_estimation(video_id, img_paths)
 
