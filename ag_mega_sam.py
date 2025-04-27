@@ -127,6 +127,10 @@ class AgMegaSam:
 
 		# ------- Camera tracking parameters -------
 		self._camera_tracking_root = os.path.join(self.datapath, 'ag4D', "mega_sam", "camera_tracking")
+
+		self.mono_img_mismatch_counter = 0
+		self.metric_mono_mismatch_counter = 0
+		self.metric_img_mismatch_counter = 0
 	
 	# -------------------------- DEPTH ANYTHING --------------------------
 	
@@ -180,10 +184,6 @@ class AgMegaSam:
 			if len(os.listdir(output_dir)) == len(img_paths):
 				print(f"Depth estimation already completed for {video_id}. Skipping...")
 				return
-			else:
-				# Remove the existing directory if it is not empty and not complete
-				os.rmdir(output_dir)
-				print(f"Removing incomplete directory for {video_id}...")
 		
 		os.makedirs(output_dir, exist_ok=True)
 		
@@ -215,15 +215,24 @@ class AgMegaSam:
 			video_frames_path = os.path.join(self.frames_path, video_id)
 			img_paths = []
 			frame_id_list = self.video_id_frame_id_list[video_id]
+			video_skip_counter = 0
 			for frame_id in frame_id_list:
+				# Check if depth anything output already exists
+				depth_anything_output_path = os.path.join(self._depth_anything_root, video_id, f"{frame_id:06d}.npy")
+				if os.path.exists(depth_anything_output_path):
+					video_skip_counter += 1
+					continue
 				img_path = os.path.join(video_frames_path, f"{frame_id:06d}.png")
 				if os.path.exists(img_path):
 					img_paths.append(img_path)
 				else:
 					assert False, f"Image {img_path} does not exist."
-			
-			self.video_depth_anything_estimation(video_id, img_paths)
-		
+
+			# print(f"Video {video_id} has {len(img_paths)} frames, skipped {video_skip_counter} frames.")
+			if len(img_paths) == 0:
+				continue
+			else:
+				self.video_depth_anything_estimation(video_id, img_paths)
 		print("Depth estimation completed for all videos.")
 	
 	# -------------------------- UNIDEPTH --------------------------
@@ -493,6 +502,7 @@ class AgMegaSam:
 			video_frames_path = os.path.join(self.frames_path, video_id)
 			img_paths = []
 			frame_id_list = self.video_id_frame_id_list[video_id]
+			frame_id_list = sorted(np.unique(frame_id_list))
 			for frame_id in frame_id_list:
 				img_path = os.path.join(video_frames_path, f"{frame_id:06d}.png")
 				if os.path.exists(img_path):
@@ -502,21 +512,26 @@ class AgMegaSam:
 			
 			self.video_camera_tracking_estimation(video_id, img_paths, args)
 
+		print("Camera tracking completed for all videos.")
+		print("Mono image mismatch count: ", self.mono_img_mismatch_counter)
+		print("Metric image mismatch count: ", self.metric_img_mismatch_counter)
+		print("Metric and Mono image mismatch count: ", self.metric_mono_mismatch_counter)
+
 
 def main():
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--datapath', type=str, default="/data/rohith/ag/")
-	# parser.add_argument('--encoder', type=str, default='vitl')
-	# parser.add_argument('--load_from', type=str,
-	#                     default='/home/rxp190007/CODE/mega-sam/Depth_Anything/checkpoints/depth_anything_vitl14.pth')
-	# parser.add_argument('--localhub', dest='localhub', action='store_true', default=False)
+	parser.add_argument('--encoder', type=str, default='vitl')
+	parser.add_argument('--load_from', type=str,
+	                    default='/home/rxp190007/CODE/mega-sam/Depth_Anything/checkpoints/depth_anything_vitl14.pth')
+	parser.add_argument('--localhub', dest='localhub', action='store_true', default=False)
 	
 	parser.add_argument("--mode", type=str,
 	                    choices=["depth_anything", "uni_depth", "camera_tracking", "preprocess_flow", "cvd_opt"],
 	                    required=True)
 	
 	# ------------------------------ CAMERA TRACKING ----------------------------
-	parser.add_argument("--weights", default="droid.pth")
+	parser.add_argument("--weights", default="/home/rxp190007/CODE/mega-sam/checkpoints/megasam_final.pth")
 	parser.add_argument("--buffer", type=int, default=1024)
 	parser.add_argument("--image_size", default=[240, 320])
 	parser.add_argument("--disable_vis", action="store_true")
@@ -541,7 +556,7 @@ def main():
 	parser.add_argument("--backend_nms", type=int, default=3)
 	
 	parser.add_argument("--mono_depth_path", default="/data/rohith/ag/ag4D/mega_sam/depth_anything")
-	parser.add_argument("--metric_depth_path", default="/data/rohith/ag/ag4D/mega_sam/uni_depth")
+	parser.add_argument("--metric_depth_path", default="/data/rohith/ag/ag4D/mega_sam/unidepth")
 	
 	args = parser.parse_args()
 	ag_mega_sam = AgMegaSam(datapath=args.datapath)
