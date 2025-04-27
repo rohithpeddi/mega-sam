@@ -16,6 +16,129 @@ from PIL import Image
 
 from UniDepth.unidepth.models import UniDepthV2
 
+import sys
+
+sys.path.append("base/droid_slam")
+
+import glob
+from lietorch import SE3
+from droid import Droid
+
+
+def image_stream(
+    image_list,
+    mono_disp_list,
+    scene_name,
+    use_depth=False,
+    aligns=None,
+    K=None,
+    stride=1,
+):
+  """image generator."""
+  del scene_name, stride
+
+  fx, fy, cx, cy = (
+      K[0, 0],
+      K[1, 1],
+      K[0, 2],
+      K[1, 2],
+  )  # np.loadtxt(os.path.join(datapath, 'calibration.txt')).tolist()
+
+  for t, (image_file) in enumerate(image_list):
+    image = cv2.imread(image_file)
+    # depth = cv2.imread(depth_file, cv2.IMREAD_ANYDEPTH) / 5000.
+    # depth = np.float32(np.load(depth_file)) / 300.0
+    # depth =  1. / pt_data["depth"]
+
+    mono_disp = mono_disp_list[t]
+    # mono_disp = np.float32(np.load(disp_file)) #/ 300.0
+    depth = np.clip(
+        1.0 / ((1.0 / aligns[2]) * (aligns[0] * mono_disp + aligns[1])),
+        1e-4,
+        1e4,
+    )
+    depth[depth < 1e-2] = 0.0
+
+    # breakpoint()
+    h0, w0, _ = image.shape
+    h1 = int(h0 * np.sqrt((384 * 512) / (h0 * w0)))
+    w1 = int(w0 * np.sqrt((384 * 512) / (h0 * w0)))
+
+    image = cv2.resize(image, (w1, h1), interpolation=cv2.INTER_AREA)
+    image = image[: h1 - h1 % 8, : w1 - w1 % 8]
+
+    # if t == 4 or t == 29:
+    # imageio.imwrite("debug/camel_%d.png"%t, image[..., ::-1])
+
+    image = torch.as_tensor(image).permute(2, 0, 1)
+    # print("image ", image.shape)
+    # breakpoint()
+
+    depth = torch.as_tensor(depth)
+    depth = F.interpolate(
+        depth[None, None], (h1, w1), mode="nearest-exact"
+    ).squeeze()
+    depth = depth[: h1 - h1 % 8, : w1 - w1 % 8]
+
+    mask = torch.ones_like(depth)
+
+    intrinsics = torch.as_tensor([fx, fy, cx, cy])
+    intrinsics[0::2] *= w1 / w0
+    intrinsics[1::2] *= h1 / h0
+
+    if use_depth:
+      yield t, image[None], depth, intrinsics, mask
+    else:
+      yield t, image[None], intrinsics, mask
+
+
+def save_full_reconstruction(
+    droid, full_traj, rgb_list, senor_depth_list, motion_prob, scene_name
+):
+  """Save full reconstruction."""
+  from pathlib import Path
+  t = full_traj.shape[0]
+  images = np.array(rgb_list[:t])  # droid.video.images[:t].cpu().numpy()
+  disps = 1.0 / (np.array(senor_depth_list[:t]) + 1e-6)
+
+  poses = full_traj  # .cpu().numpy()
+  intrinsics = droid.video.intrinsics[:t].cpu().numpy()
+
+  Path("reconstructions/{}".format(scene_name)).mkdir(
+      parents=True, exist_ok=True
+  )
+  np.save("reconstructions/{}/images.npy".format(scene_name), images)
+  np.save("reconstructions/{}/disps.npy".format(scene_name), disps)
+  np.save("reconstructions/{}/poses.npy".format(scene_name), poses)
+  np.save(
+      "reconstructions/{}/intrinsics.npy".format(scene_name), intrinsics * 8.0
+  )
+  np.save("reconstructions/{}/motion_prob.npy".format(scene_name), motion_prob)
+
+  intrinsics = intrinsics[0] * 8.0
+  poses_th = torch.as_tensor(poses, device="cpu")
+  cam_c2w = SE3(poses_th).inv().matrix().numpy()
+
+  K = np.eye(3)
+  K[0, 0] = intrinsics[0]
+  K[1, 1] = intrinsics[1]
+  K[0, 2] = intrinsics[2]
+  K[1, 2] = intrinsics[3]
+  print("K ", K)
+  print("img_data ", images.shape)
+  print("disp_data ", disps.shape)
+
+  max_frames = min(1000, images.shape[0])
+  print("outputs/%s_droid.npz" % scene_name)
+  Path("outputs").mkdir(parents=True, exist_ok=True)
+
+  np.savez(
+      "outputs/%s_droid.npz" % scene_name,
+      images=np.uint8(images[:max_frames, ::-1, ...].transpose(0, 2, 3, 1)),
+      depths=np.float32(1.0 / disps[:max_frames, ...]),
+      intrinsic=K,
+      cam_c2w=cam_c2w[:max_frames],
+  )
 
 class AgMegaSam:
 
@@ -226,6 +349,8 @@ class AgMegaSam:
             self.video_unidepth_estimation(video_id, img_paths)
 
         print("Depth estimation completed for all videos.")
+
+    # -------------------------- CAMERA TRACKING --------------------------
 
 
 def main():
