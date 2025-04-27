@@ -94,55 +94,6 @@ def image_stream(
 			yield t, image[None], intrinsics, mask
 
 
-def save_full_reconstruction(
-		droid, full_traj, rgb_list, senor_depth_list, motion_prob, scene_name
-):
-	"""Save full reconstruction."""
-	from pathlib import Path
-	t = full_traj.shape[0]
-	images = np.array(rgb_list[:t])  # droid.video.images[:t].cpu().numpy()
-	disps = 1.0 / (np.array(senor_depth_list[:t]) + 1e-6)
-	
-	poses = full_traj  # .cpu().numpy()
-	intrinsics = droid.video.intrinsics[:t].cpu().numpy()
-	
-	Path(f"reconstructions/{scene_name}").mkdir(
-		parents=True, exist_ok=True
-	)
-	np.save(f"reconstructions/{scene_name}/images.npy", images)
-	np.save(f"reconstructions/{scene_name}/disps.npy", disps)
-	np.save(f"reconstructions/{scene_name}/poses.npy", poses)
-	np.save(
-		f"reconstructions/{scene_name}/intrinsics.npy", intrinsics * 8.0
-	)
-	np.save(f"reconstructions/{scene_name}/motion_prob.npy", motion_prob)
-	
-	intrinsics = intrinsics[0] * 8.0
-	poses_th = torch.as_tensor(poses, device="cpu")
-	cam_c2w = SE3(poses_th).inv().matrix().numpy()
-	
-	K = np.eye(3)
-	K[0, 0] = intrinsics[0]
-	K[1, 1] = intrinsics[1]
-	K[0, 2] = intrinsics[2]
-	K[1, 2] = intrinsics[3]
-	print("K ", K)
-	print("img_data ", images.shape)
-	print("disp_data ", disps.shape)
-	
-	max_frames = min(1000, images.shape[0])
-	print(f"outputs/{scene_name}_droid.npz")
-	Path("outputs").mkdir(parents=True, exist_ok=True)
-	
-	np.savez(
-		f"outputs/{scene_name}_droid.npz",
-		images=np.uint8(images[:max_frames, ::-1, ...].transpose(0, 2, 3, 1)),
-		depths=np.float32(1.0 / disps[:max_frames, ...]),
-		intrinsic=K,
-		cam_c2w=cam_c2w[:max_frames],
-	)
-
-
 class AgMegaSam:
 	
 	def __init__(self, datapath):
@@ -172,8 +123,10 @@ class AgMegaSam:
 		
 		# ------- UniDepth parameters -------
 		self._unidepth_root = os.path.join(self.datapath, 'ag4D', "mega_sam", "unidepth")
-		
 		self.LONG_DIM = 640
+
+		# ------- Camera tracking parameters -------
+		self._camera_tracking_root = os.path.join(self.datapath, 'ag4D', "mega_sam", "camera_tracking")
 	
 	# -------------------------- DEPTH ANYTHING --------------------------
 	
@@ -350,9 +303,51 @@ class AgMegaSam:
 		print("Depth estimation completed for all videos.")
 	
 	# -------------------------- CAMERA TRACKING --------------------------
-	
-	def _load_camera_tracking_model(self, args):
-		pass
+	def save_full_reconstruction(
+			self, droid, full_traj, rgb_list, senor_depth_list, motion_prob, video_id
+	):
+		"""Save full reconstruction."""
+		output_dir = os.path.join(self._camera_tracking_root, "reconstructions", video_id)
+		os.makedirs(output_dir, exist_ok=True)
+
+		t = full_traj.shape[0]
+		images = np.array(rgb_list[:t])  # droid.video.images[:t].cpu().numpy()
+		disps = 1.0 / (np.array(senor_depth_list[:t]) + 1e-6)
+
+		poses = full_traj  # .cpu().numpy()
+		intrinsics = droid.video.intrinsics[:t].cpu().numpy()
+
+
+		np.save(f"{output_dir}/images.npy", images)
+		np.save(f"{output_dir}/disps.npy", disps)
+		np.save(f"{output_dir}/poses.npy", poses)
+		np.save(f"{output_dir}/intrinsics.npy", intrinsics * 8.0)
+		np.save(f"{output_dir}/motion_prob.npy", motion_prob)
+
+		intrinsics = intrinsics[0] * 8.0
+		poses_th = torch.as_tensor(poses, device="cpu")
+		cam_c2w = SE3(poses_th).inv().matrix().numpy()
+
+		K = np.eye(3)
+		K[0, 0] = intrinsics[0]
+		K[1, 1] = intrinsics[1]
+		K[0, 2] = intrinsics[2]
+		K[1, 2] = intrinsics[3]
+		print("K ", K)
+		print("img_data ", images.shape)
+		print("disp_data ", disps.shape)
+
+		max_frames = min(1000, images.shape[0])
+		print(f"outputs/{video_id}_droid.npz")
+		os.makedirs(f"{output_dir}/outputs", exist_ok=True)
+
+		np.savez(
+			f"{output_dir}/outputs/{video_id}_droid.npz",
+			images=np.uint8(images[:max_frames, ::-1, ...].transpose(0, 2, 3, 1)),
+			depths=np.float32(1.0 / disps[:max_frames, ...]),
+			intrinsic=K,
+			cam_c2w=cam_c2w[:max_frames],
+		)
 	
 	def video_camera_tracking_estimation(self, video_id, image_list, args):
 		tstamps = []
@@ -484,7 +479,7 @@ class AgMegaSam:
 			scene_name=video_id,
 		)
 		
-		save_full_reconstruction(
+		self.save_full_reconstruction(
 			droid,
 			traj_est,
 			rgb_list,
@@ -561,6 +556,10 @@ def main():
 		print("Running depth estimation using UniDepth...")
 		ag_mega_sam._load_unidepth_model(args)
 		ag_mega_sam.run_ag_unidepth_estimation()
+	# ----- Run camera tracking -----
+	elif args.mode == "camera_tracking":
+		print("Running camera tracking...")
+		ag_mega_sam.run_camera_tracking(args)
 	else:
 		raise ValueError("Invalid mode selected. Choose from ['depth_anything', 'uni_depth']")
 
