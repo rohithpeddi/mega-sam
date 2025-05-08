@@ -551,10 +551,10 @@ class AgMegaSam:
         self._flow_model.cuda()
         self._flow_model.eval()
 
-    def video_preprocess_flow(self, video_id, image_list):
+    def video_preprocess_flow(self, video_id, image_list, args):
 
         img_data = []
-        for t, (image_file) in tqdm.tqdm(enumerate(image_list)):
+        for t, (image_file) in tqdm(enumerate(image_list)):
             image = cv2.imread(image_file)[..., ::-1]  # rgb
             h0, w0, _ = image.shape
             h1 = int(h0 * np.sqrt((384 * 512) / (h0 * w0)))
@@ -581,7 +581,7 @@ class AgMegaSam:
 
         for step in [1, 2, 4, 8, 15]:
             flows_arr_low = []
-            for i in tqdm.tqdm(range(max(0, -step), img_data.shape[0] - max(0, step))):
+            for i in tqdm(range(max(0, -step), img_data.shape[0] - max(0, step))):
                 image1 = (
                     torch.as_tensor(np.ascontiguousarray(img_data[i: i + 1]))
                     .float()
@@ -673,12 +673,9 @@ class AgMegaSam:
                 else:
                     assert False, f"Image {img_path} does not exist."
 
-            self.video_camera_tracking_estimation(video_id, img_paths, args)
+            self.video_preprocess_flow(video_id, img_paths, args)
 
-        print("Camera tracking completed for all videos.")
-        print("Mono image mismatch count: ", self.mono_img_mismatch_counter)
-        print("Metric image mismatch count: ", self.metric_img_mismatch_counter)
-        print("Metric and Mono image mismatch count: ", self.metric_mono_mismatch_counter)
+        print("Flow estimation completed for all videos.")
 
 
 def main():
@@ -775,6 +772,7 @@ def main():
         ag_mega_sam.run_camera_tracking(args)
     elif args.mode == "preprocess_flow":
         print("Running flow estimation...")
+        ag_mega_sam._load_flow_estimation_model(args)
         ag_mega_sam.run_flow_estimation(args)
     else:
         raise ValueError("Invalid mode selected. Choose from ['depth_anything', 'uni_depth']")

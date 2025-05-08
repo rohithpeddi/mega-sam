@@ -15,17 +15,17 @@
 
 """RAFT network for MegaSaM."""
 
-from corr import AlternateCorrBlock
-from corr import CorrBlock
-from extractor import BasicEncoder
-from extractor import SmallEncoder
+from cvd_opt.core.corr import AlternateCorrBlock
+from cvd_opt.core.corr import CorrBlock
+from cvd_opt.core.extractor import BasicEncoder
+from cvd_opt.core.extractor import SmallEncoder
 import torch
 from torch import nn
 import torch.nn.functional as F
-from update import BasicUpdateBlock
-from update import SmallUpdateBlock
-from utils.utils import coords_grid
-from utils.utils import upflow8
+from cvd_opt.core.update import BasicUpdateBlock
+from cvd_opt.core.update import SmallUpdateBlock
+from cvd_opt.core.utils.utils import coords_grid
+from cvd_opt.core.utils.utils import upflow8
 
 try:
   autocast = torch.cuda.amp.autocast
